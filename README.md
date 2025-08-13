@@ -317,6 +317,39 @@ Este projeto está organizado em repositórios separados para melhor organizaç�
 - **Documentação:** README principal com instruções completas
 - **Deploy:** Configuração para produção
 
+## 🚀 Setup Automático
+
+Para facilitar a avaliação, incluímos scripts que automatizam o download dos repositórios:
+
+### 📥 Baixar Repositórios
+```bash
+# Executar o script de setup automático
+./setup.sh
+```
+
+Este script irá:
+- ✅ Baixar automaticamente o repositório do backend
+- ✅ Baixar automaticamente o repositório do frontend
+- ✅ Verificar se os arquivos foram baixados corretamente
+- ✅ Configurar a estrutura completa do projeto
+
+### 🧹 Limpar Repositórios
+```bash
+# Remover os repositórios baixados (para liberar espaço)
+./clean.sh
+```
+
+### 📁 Estrutura Após Setup
+```
+projeto/
+├── backend/          # Repositório do backend (baixado automaticamente)
+├── frontend/         # Repositório do frontend (baixado automaticamente)
+├── docker-compose.yml
+├── README.md
+├── setup.sh         # Script de setup automático
+└── clean.sh         # Script de limpeza
+```
+
 ## 🤝 Contribuição
 
 ### Padrões de Desenvolvimento
