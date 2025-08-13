@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: invest_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-invest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-investpw}
+      POSTGRES_DB: ${POSTGRES_DB:-investdb}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-invest} -d ${POSTGRES_DB:-investdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: invest_redis
+
+  backend:
+    build: ./backend
+    container_name: invest_backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://invest:investpw@db/investdb}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      # Ajuste conforme o seu backend (JWT secret, etc.)
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-changeme}
+      # Origem do frontend permitida no CORS (evita bloqueio em dev)
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      PYTHONPATH: /app
+      # TZ para logs coerentes
+      TZ: America/Sao_Paulo
+    ports:
+      - "8000:8000"
+    # Se seu Dockerfile já inicia o uvicorn, mantenha. Caso contrário:
+    command: >
+      sh -c "cd /app/backend && 
+            alembic upgrade head && 
+            uvicorn main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: ./backend
+    container_name: invest_worker
+    depends_on:
+      - backend
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://invest:investpw@db/investdb}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      TZ: America/Sao_Paulo
+      PYTHONPATH: /app
+    command: >
+      celery -A backend.tasks.celery_app worker --loglevel=INFO
+
+  beat:
+    build: ./backend
+    container_name: invest_beat
+    depends_on:
+      - backend
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://invest:investpw@db/investdb}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      TZ: America/Sao_Paulo
+      PYTHONPATH: /app
+    command: >
+      celery -A backend.tasks.celery_app beat --loglevel=INFO
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+    container_name: invest_frontend
+    depends_on:
+      - backend
+    environment:
+      # Em runtime, o Next pode ler isso também
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+      INTERNAL_API_BASE: ${INTERNAL_API_BASE:-http://backend:8000}
+      TZ: America/Sao_Paulo
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
